@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Railway.Repository;
 using Railway.DTOs;
+using Railway.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Railway.Controllers
 {
@@ -36,6 +38,73 @@ namespace Railway.Controllers
                 return NotFound("No trains found for the given criteria.");
 
             return Ok(result);
+        }
+
+        [HttpPost("add")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> AddTrain([FromBody] TrainCreationRequest trainRequest)
+        {
+            var train = new Train
+            {
+                TrainName = trainRequest.TrainName,
+                TrainType = trainRequest.TrainType,
+                TotalSeats = trainRequest.TotalSeats,
+                RunningDays = trainRequest.RunningDays
+            };
+
+            var schedules = new List<TrainSchedule>();
+            foreach (var scheduleDto in trainRequest.Schedules)
+            {
+                schedules.Add(new TrainSchedule
+                {
+                    StationID = scheduleDto.StationID,
+                    ArrivalTime = scheduleDto.ArrivalTime,
+                    DepartureTime = scheduleDto.DepartureTime,
+                    SequenceOrder = scheduleDto.SequenceOrder,
+                    Fair = scheduleDto.Fair,
+                    DistanceFromSource = scheduleDto.DistanceFromSource
+                });
+            }
+
+            var success = await _trainRepository.AddTrainAsync(train, schedules);
+            if (success)
+                return Ok("Train added successfully.");
+            else
+                return BadRequest("Failed to add train.");
+        }
+
+        [HttpPut("update")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateTrain([FromBody] TrainUpdateRequest updateRequest)
+        {
+            var train = new Train
+            {
+                TrainID = updateRequest.TrainID,
+                TrainName = updateRequest.TrainName,
+                TrainType = updateRequest.TrainType,
+                TotalSeats = updateRequest.TotalSeats,
+                RunningDays = updateRequest.RunningDays
+            };
+
+            var updatedSchedules = new List<TrainSchedule>();
+            foreach (var scheduleDto in updateRequest.Schedules)
+            {
+                updatedSchedules.Add(new TrainSchedule
+                {
+                    StationID = scheduleDto.StationID,
+                    ArrivalTime = scheduleDto.ArrivalTime,
+                    DepartureTime = scheduleDto.DepartureTime,
+                    SequenceOrder = scheduleDto.SequenceOrder,
+                    Fair = scheduleDto.Fair,
+                    DistanceFromSource = scheduleDto.DistanceFromSource
+                });
+            }
+
+            var success = await _trainRepository.UpdateTrainAsync(train, updatedSchedules);
+            if (success)
+                return Ok("Train updated successfully.");
+            else
+                return BadRequest("Failed to update train. Ensure the train exists.");
         }
     }
 }

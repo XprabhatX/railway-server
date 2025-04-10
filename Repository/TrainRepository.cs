@@ -78,5 +78,31 @@ namespace Railway.Repository
             await _context.TrainSchedules.AddRangeAsync(schedule);
             return await _context.SaveChangesAsync() > 0;
         }
+
+        public async Task<bool> UpdateTrainAsync(Train updatedTrain, List<TrainSchedule> updatedSchedules)
+        {
+            var existingTrain = await _context.Trains.FindAsync(updatedTrain.TrainID);
+            if (existingTrain == null) 
+                return false;
+
+            existingTrain.TrainName = updatedTrain.TrainName;
+            existingTrain.TrainType = updatedTrain.TrainType;
+            existingTrain.TotalSeats = updatedTrain.TotalSeats;
+            existingTrain.RunningDays = updatedTrain.RunningDays;
+            
+            _context.Trains.Update(existingTrain);
+
+            var oldSchedules = _context.TrainSchedules.Where(s => s.TrainID == updatedTrain.TrainID);
+            _context.TrainSchedules.RemoveRange(oldSchedules);
+            
+            foreach(var schedule in updatedSchedules)
+            {
+                schedule.TrainID = updatedTrain.TrainID;
+            }
+            await _context.TrainSchedules.AddRangeAsync(updatedSchedules);
+
+            return await _context.SaveChangesAsync() > 0;
+        }
+
     }
 }

@@ -1,6 +1,10 @@
 using Authentication.Models;
+using Authentication.DTOs;
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -34,23 +38,23 @@ namespace Authentication.Controllers
                     Email = SignUpObj.Email,
                     AadharNumber = SignUpObj.AadharNumber
                 };
-                
+
                 if (SignUpObj.Role != "User" && SignUpObj.Role != "Admin")
-                    return BadRequest("Please Specify correct role");
-                
+                    return BadRequest("Please specify correct role.");
+
                 var aadharRegex = new Regex(@"^\d{12}$");
                 if (!aadharRegex.IsMatch(user.AadharNumber))
                     return BadRequest("Invalid Aadhar number. It must be exactly 12 digits.");
-
 
                 var result = await _userManager.CreateAsync(user, SignUpObj.Password);
                 if (result.Succeeded)
                 {
                     await _userManager.AddToRoleAsync(user, SignUpObj.Role);
-                    return Ok("User account created");
+                    return Ok("User account created.");
                 }
-                return BadRequest("Failed to create account");
-            } catch (Exception ex)
+                return BadRequest("Failed to create account.");
+            } 
+            catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
                 return BadRequest($"Caught error: {ex.Message}");
@@ -63,12 +67,29 @@ namespace Authentication.Controllers
             var user = await _userManager.FindByEmailAsync(SignInObj.Email);
             if (user != null && await _userManager.CheckPasswordAsync(user, SignInObj.Password))
             {
-                var roles = _userManager.GetRolesAsync(user);
-                Console.WriteLine($"Aadhar {user.AadharNumber} logged in with Role: {roles}");
+                var roles = await _userManager.GetRolesAsync(user);
+                Console.WriteLine($"Aadhar {user.AadharNumber} logged in with Role: {string.Join(",", roles)}");
+
                 var token = await GenerateJwtToken(user);
                 return Ok(token);
             }
             return BadRequest("Incorrect Email/Password");
+        }
+
+        [HttpGet("all")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAllUsers()
+        {
+            var users = await _userManager.Users
+                .Select(u => new UserListingDto 
+                {
+                    Username = u.UserName,
+                    Email = u.Email,
+                    AadharNumber = u.AadharNumber
+                })
+                .ToListAsync();
+
+            return Ok(users);
         }
 
         private async Task<string> GenerateJwtToken(User user)
