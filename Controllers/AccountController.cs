@@ -64,32 +64,48 @@ namespace Authentication.Controllers
         [HttpPost("signin")]
         public async Task<IActionResult> SignIn([FromBody] SignIn SignInObj)
         {
-            var user = await _userManager.FindByEmailAsync(SignInObj.Email);
-            if (user != null && await _userManager.CheckPasswordAsync(user, SignInObj.Password))
+            try
             {
-                var roles = await _userManager.GetRolesAsync(user);
-                Console.WriteLine($"Aadhar {user.AadharNumber} logged in with Role: {string.Join(",", roles)}");
+                var user = await _userManager.FindByEmailAsync(SignInObj.Email);
+                if (user != null && await _userManager.CheckPasswordAsync(user, SignInObj.Password))
+                {
+                    var roles = await _userManager.GetRolesAsync(user);
+                    Console.WriteLine($"Aadhar {user.AadharNumber} logged in with Role: {string.Join(",", roles)}");
 
-                var token = await GenerateJwtToken(user);
-                return Ok(token);
+                    var token = await GenerateJwtToken(user);
+                    return Ok(token);
+                }
+                return BadRequest("Incorrect Email/Password");
             }
-            return BadRequest("Incorrect Email/Password");
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return BadRequest($"Caught error: {ex.Message}");
+            }
         }
 
         [HttpGet("all")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetAllUsers()
         {
-            var users = await _userManager.Users
-                .Select(u => new UserListingDto 
-                {
-                    Username = u.UserName,
-                    Email = u.Email,
-                    AadharNumber = u.AadharNumber
-                })
-                .ToListAsync();
+            try
+            {
+                var users = await _userManager.Users
+                    .Select(u => new UserListingDto 
+                    {
+                        Username = u.UserName,
+                        Email = u.Email,
+                        AadharNumber = u.AadharNumber
+                    })
+                    .ToListAsync();
 
-            return Ok(users);
+                return Ok(users);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return BadRequest($"Caught error: {ex.Message}");
+            }
         }
 
         private async Task<string> GenerateJwtToken(User user)
