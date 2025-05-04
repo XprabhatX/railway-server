@@ -108,6 +108,27 @@ namespace Authentication.Controllers
             }
         }
 
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<IActionResult> GetCurrentUser()
+        {
+            var userEmail = User.FindFirstValue(ClaimTypes.Email);
+            if (string.IsNullOrEmpty(userEmail))
+                return Unauthorized("Email claim missing in token.");
+
+            var user = await _userManager.FindByEmailAsync(userEmail);
+            if (user == null)
+                return NotFound("User not found.");
+            var roles = await _userManager.GetRolesAsync(user);
+
+            return Ok(new {
+                user.UserName,
+                user.Email,
+                user.AadharNumber,
+                roles
+            });
+        }
+
         private async Task<string> GenerateJwtToken(User user)
         {
             var jwtSettings = _configuration.GetSection("JWT");

@@ -1,6 +1,7 @@
 using Authentication.Data;
 using Microsoft.EntityFrameworkCore;
 using Railway.Models;
+using Railway.DTOs;
 
 namespace Railway.Repository
 {
@@ -82,20 +83,20 @@ namespace Railway.Repository
         public async Task<bool> UpdateTrainAsync(Train updatedTrain, List<TrainSchedule> updatedSchedules)
         {
             var existingTrain = await _context.Trains.FindAsync(updatedTrain.TrainID);
-            if (existingTrain == null) 
+            if (existingTrain == null)
                 return false;
 
             existingTrain.TrainName = updatedTrain.TrainName;
             existingTrain.TrainType = updatedTrain.TrainType;
             existingTrain.TotalSeats = updatedTrain.TotalSeats;
             existingTrain.RunningDays = updatedTrain.RunningDays;
-            
+
             _context.Trains.Update(existingTrain);
 
             var oldSchedules = _context.TrainSchedules.Where(s => s.TrainID == updatedTrain.TrainID);
             _context.TrainSchedules.RemoveRange(oldSchedules);
-            
-            foreach(var schedule in updatedSchedules)
+
+            foreach (var schedule in updatedSchedules)
             {
                 schedule.TrainID = updatedTrain.TrainID;
             }
@@ -103,6 +104,119 @@ namespace Railway.Repository
 
             return await _context.SaveChangesAsync() > 0;
         }
+
+        public async Task<List<object>> GetAllTrainsAsync()
+        {
+            var trainsData = await (from t in _context.Trains
+                                    join ts in _context.TrainSchedules on t.TrainID equals ts.TrainID into schedules
+                                    select new
+                                    {
+                                        t.TrainID,
+                                        t.TrainName,
+                                        t.TrainType,
+                                        t.TotalSeats,
+                                        t.RunningDays,
+                                        Schedules = schedules.OrderBy(s => s.SequenceOrder).Select(s => new
+                                        {
+                                            s.ScheduleID,
+                                            s.StationID,
+                                            ArrivalTime = s.ArrivalTime,
+                                            DepartureTime = s.DepartureTime,
+                                            s.SequenceOrder,
+                                            s.Fair,
+                                            s.DistanceFromSource,
+                                            StationName = (from st in _context.Stations
+                                                           where st.StationID == s.StationID
+                                                           select st.StationName).FirstOrDefault()
+                                        }).ToList()
+                                    }).ToListAsync();
+
+            var seatAvailabilities = await _context.SeatAvailabilities.ToListAsync();
+
+            var result = trainsData.Select(t => new
+            {
+                t.TrainID,
+                t.TrainName,
+                t.TrainType,
+                t.TotalSeats,
+                t.RunningDays,
+                Schedules = t.Schedules,
+                SeatAvailability = seatAvailabilities
+                    .Where(sa => sa.TrainID == t.TrainID)
+                    .GroupBy(sa => sa.ClassTypeID)
+                    .Select(g => new
+                    {
+                        ClassTypeID = g.Key,
+                        RemainingSeats = g.Sum(sa => sa.RemainingSeats)
+                    }).ToList()
+            }).Cast<object>().ToList();
+
+            return result;
+        }
+
+        public async Task<object?> GetTrainByIdAsync(int trainId)
+        {
+            var train = await _context.Trains
+                .Include(t => t.Schedules)
+                .FirstOrDefaultAsync(t => t.TrainID == trainId);
+
+            if (train == null) return null;
+
+            return new
+            {
+                train.TrainID,
+                train.TrainName,
+                train.TrainType,
+                train.TotalSeats,
+                train.RunningDays,
+                Schedules = train.Schedules
+                    .OrderBy(s => s.SequenceOrder)
+                    .Select(s => new
+                    {
+                        s.ScheduleID,
+                        s.StationID,
+                        s.ArrivalTime,
+                        s.DepartureTime,
+                        s.SequenceOrder,
+                        s.Fair,
+                        s.DistanceFromSource,
+                        StationName = _context.Stations
+                            .Where(st => st.StationID == s.StationID)
+                            .Select(st => st.StationName)
+                            .FirstOrDefault()
+                    }).ToList()
+            };
+        }
+
+        public async Task<bool> UpdateScheduleForSpecificDateAsync(ScheduleUpdateForDateRequest request)
+        {
+            var availabilities = await _context.SeatAvailabilities
+                .Where(sa => sa.TrainID == request.TrainID && sa.Date.Date == request.Date.Date)
+                .ToListAsync();
+
+            foreach (var update in request.Updates)
+            {
+                var availability = availabilities.FirstOrDefault(a => a.ClassTypeID == update.ClassTypeID);
+                if (availability != null)
+                {
+                    availability.RemainingSeats = update.RemainingSeats;
+                    _context.SeatAvailabilities.Update(availability);
+                }
+                else
+                {
+                    _context.SeatAvailabilities.Add(new SeatAvailability
+                    {
+                        TrainID = request.TrainID,
+                        Date = request.Date,
+                        ClassTypeID = update.ClassTypeID,
+                        RemainingSeats = update.RemainingSeats
+                    });
+                }
+            }
+
+            return await _context.SaveChangesAsync() > 0;
+        }
+
 
     }
 }

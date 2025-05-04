@@ -106,5 +106,37 @@ namespace Railway.Controllers
             else
                 return BadRequest("Failed to update train. Ensure the train exists.");
         }
+
+        [HttpGet("all")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAllTrains()
+        {
+            var result = await _trainRepository.GetAllTrainsAsync();
+            if (result == null || !result.Any())
+                return NotFound("No trains found.");
+            return Ok(result);
+        }
+
+        [HttpGet("{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetTrainById(int id)
+        {
+            var train = await _trainRepository.GetTrainByIdAsync(id);
+            if (train == null)
+                return NotFound("Train not found.");
+            return Ok(train);
+        }
+
+        [HttpPut("updateScheduleForDate")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateTrainScheduleForDate([FromBody] ScheduleUpdateForDateRequest request)
+        {
+            var success = await _trainRepository.UpdateScheduleForSpecificDateAsync(request);
+
+            if (success)
+                return Ok("Train schedule updated for specific date.");
+            else
+                return BadRequest("Failed to update schedule.");
+        }
     }
 }

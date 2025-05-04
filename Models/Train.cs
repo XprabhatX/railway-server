@@ -24,5 +24,7 @@ namespace Railway.Models
         [Required]
         [MaxLength(50)]
         public string RunningDays { get; set; }
+
+        public virtual ICollection<TrainSchedule> Schedules { get; set; } = new List<TrainSchedule>();
     }
 }

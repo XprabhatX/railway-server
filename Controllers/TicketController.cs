@@ -4,6 +4,7 @@ using Railway.DTOs;
 using Railway.Models;
 using Railway.Repository;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace Railway.Controllers
@@ -23,6 +24,7 @@ namespace Railway.Controllers
         }
 
         [HttpPost("book")]
+        [Authorize(Roles = "User")]
         public async Task<IActionResult> BookTicket([FromBody] TicketBookingRequest request)
         {
             var ticket = new Ticket
@@ -50,7 +52,7 @@ namespace Railway.Controllers
 
             bool success = await _ticketRepository.BookTicketAsync(ticket, passengers);
             if (success)
-                return Ok("Ticket booked successfully.");
+                return Ok("Ticket booked successfully. Here is ");
             else
                 return BadRequest("Failed to book ticket. Possibly insufficient seats or schedule data issue.");
         }
